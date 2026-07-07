@@ -1,332 +1,361 @@
 // ══════════════════════════════════════════════════════════════════════
-// Google Apps Script — IC Weekly Report Backend
-// วิธีใช้: Copy ทั้งหมดนี้ไปวางใน Google Apps Script Editor
-//          Deploy → Web App → Anyone → Copy URL ไปใส่ใน index.html
+// IC Weekly Report — Google Apps Script Backend v3
+// รองรับ FormData (no-cors) + JSON
 // ══════════════════════════════════════════════════════════════════════
 
-const SPREADSHEET_ID = ""; // ใส่ ID ของ Google Sheets ที่ต้องการ หรือปล่อยว่างให้ระบบสร้างใหม่
+const SPREADSHEET_ID = "";  // ใส่ ID ถ้ามีหลาย Spreadsheet ปล่อยว่าง = ใช้ที่ผูกกับ Script
 
-// ── MAIN ENTRY POINT ──────────────────────────────────────────────────
+// ── ROUTING ──────────────────────────────────────────────────────────
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
+    // รับได้ทั้ง FormData (no-cors) และ JSON
+    let data;
+    if (e.postData && e.postData.type === "application/json") {
+      data = JSON.parse(e.postData.contents);
+    } else {
+      const raw = e.parameter.data || (e.parameters.data && e.parameters.data[0]) || "{}";
+      data = JSON.parse(raw);
+    }
+
     const ss = getSpreadsheet();
-    writeWeeklySheet(ss, data);
-    updateMonthlySummary(ss, data);
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: "ok", week: data.week }))
-      .setMimeType(ContentService.MimeType.JSON);
+    switch (data.action) {
+      case "saveDraft":      return ok(saveDraft(ss, data));
+      case "mergeAndSubmit": return ok(mergeAndSubmit(ss, data.week));
+      default:
+        writeWeeklySheet(ss, data);
+        updateMonthlySummary(ss, data);
+        return ok({ status: "ok", week: data.week });
+    }
   } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: "error", message: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ok({ status: "error", message: err.message });
   }
 }
 
 function doGet(e) {
   try {
-    const action = e.parameter.action || "getHistory";
-    const ss = getSpreadsheet();
-    if (action === "getHistory") {
-      return ContentService
-        .createTextOutput(JSON.stringify(getHistory(ss)))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-    if (action === "getMonthly") {
-      const month = e.parameter.month || getCurrentMonth();
-      return ContentService
-        .createTextOutput(JSON.stringify(getMonthlyData(ss, month)))
-        .setMimeType(ContentService.MimeType.JSON);
+    const ss  = getSpreadsheet();
+    const act = (e.parameter && e.parameter.action) || "getHistory";
+    switch (act) {
+      case "getDraft":   return ok(getDraft(ss, e.parameter.week));
+      case "getHistory": return ok(getHistory(ss));
+      case "getMonthly": return ok(getMonthlyData(ss, e.parameter.month || getCurrentMonth()));
+      default:           return ok({ status: "error", message: "Unknown action" });
     }
   } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: "error", message: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ok({ status: "error", message: err.message });
   }
 }
 
-// ── GET OR CREATE SPREADSHEET ─────────────────────────────────────────
+function ok(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── SPREADSHEET ───────────────────────────────────────────────────────
 function getSpreadsheet() {
-  if (SPREADSHEET_ID) {
-    return SpreadsheetApp.openById(SPREADSHEET_ID);
-  }
-  // ถ้าไม่ได้ระบุ ID ให้เปิด Spreadsheet ที่ผูกกับ Script นี้
-  return SpreadsheetApp.getActiveSpreadsheet();
+  return SPREADSHEET_ID
+    ? SpreadsheetApp.openById(SPREADSHEET_ID)
+    : SpreadsheetApp.getActiveSpreadsheet();
 }
 
-// ── WRITE WEEKLY SHEET ────────────────────────────────────────────────
-function writeWeeklySheet(ss, data) {
-  const sheetName = "W_" + data.week.replace("-", "_"); // เช่น W_2568_W03
-  let ws = ss.getSheetByName(sheetName);
-
-  if (!ws) {
-    ws = ss.insertSheet(sheetName);
-    // ย้าย Sheet ใหม่ไปตำแหน่งที่เหมาะสม (เรียงตามสัปดาห์)
-    const sheets = ss.getSheets();
-    const weekSheets = sheets.filter(s => s.getName().startsWith("W_")).map(s => s.getName()).sort();
-    const targetIdx = weekSheets.indexOf(sheetName);
-    ss.moveActiveSheet(targetIdx + 1);
+// ══════════════════════════════════════════════════════════════════════
+// DRAFT SYSTEM
+// ══════════════════════════════════════════════════════════════════════
+function saveDraft(ss, data) {
+  const sheetName = "DRAFT_" + data.week.replace("-", "_");
+  let ds = ss.getSheetByName(sheetName);
+  if (!ds) {
+    ds = ss.insertSheet(sheetName);
+    ds.getRange("A1:F1").setValues([["timestamp","author","section","key","value","device"]]);
+    ds.getRange("A1:F1").setBackground("#FEF3E2").setFontWeight("bold");
+    ds.setTabColor("#E8A020");
   }
-
-  ws.clearContents();
-  ws.setColumnWidth(1, 200);
-  ws.setColumnWidth(2, 400);
-
-  // ── HEADER ──
-  const headerData = [
-    ["I&C Weekly Report — BPK Power Plant", ""],
-    ["สัปดาห์", data.weekLabel],
-    ["ผู้จัดทำ", data.author],
-    ["สถานะโดยรวม", data.overallStatus],
-    ["หมายเหตุ", data.note || ""],
-    ["Timestamp", data.timestamp],
-    ["", ""],
-  ];
-
-  // ── I&C STATUS ──
-  const icData = [
-    ["=== สถานะโรงไฟฟ้า (I&C) ===", ""],
-    ["I&C-related Events", data.icEvents],
-    ["Protection System Readiness (%)", data.protection],
-    ["Critical WO เกิน Due Date", data.overdueWo],
-    ["Bypass Systems", data.bypass || "ไม่มี"],
-    ["YTD I&C Events", data.ytd],
-    ["เป้า I&C Events ทั้งปี", data.target],
-    ["", ""],
-  ];
-
-  // ── ESCALATIONS ──
-  const escHeader = [["=== Escalation ===", ""]];
-  const escRows = (data.escalations || []).map(e =>
-    [e.type + " (" + e.urgency + ")", e.detail]
-  );
-
-  // ── EVENTS ──
-  const evHeader = [["", ""], ["=== Highlight Events ===", ""]];
-  const evCols = [["วันที่", "ระบบ", "ประเภท", "รายละเอียด", "WO No.", "สถานะ"]];
-  const evRows = (data.events || []).map(e =>
-    [e.date, e.sys, e.type, e.desc, e.wo, e.status]
-  );
-
-  // ── RISKS ──
-  const riskHeader = [["", ""], ["=== Risk Register Status ===", ""]];
-  const riskCols = [["ระบบ", "ความเสี่ยง", "Score", "สถานะ", "เจ้าของ"]];
-  const riskRows = (data.risks || []).map(r =>
-    [r.sys, r.risk, r.score, r.status, r.owner]
-  );
-
-  // ── TEAM ──
-  const teamHeader = [["", ""], ["=== สถานะทีมงาน ===", ""]];
-  const teamRows = (data.team || []).map(p => [p.name, p.status]);
-
-  // ── SPARES ──
-  const spareHeader = [["", ""], ["=== Spare Parts ===", ""]];
-  const spareCols = [["ชื่ออะไหล่", "จำนวน", "Min Stock", "สถานะ"]];
-  const spareRows = (data.spares || []).map(s => [s.name, s.qty, s.min, s.status]);
-
-  // ── PLANS ──
-  const planHeader = [["", ""], ["=== แผนสัปดาห์หน้า ===", ""]];
-  const planRows = (data.plans || []).map((p, i) =>
-    [i + 1 + ". " + p.desc, p.owner + " [" + p.pri + "]"]
-  );
-
-  // รวมทุก Section แล้วเขียนลง Sheet
-  const allData = [
-    ...headerData,
-    ...icData,
-    ...escHeader, ...escRows,
-    ...evHeader, ...evCols, ...evRows,
-    ...riskHeader, ...riskCols, ...riskRows,
-    ...teamHeader, ...teamRows,
-    ...spareHeader, ...spareCols, ...spareRows,
-    ...planHeader, ...planRows,
-  ];
-
-  if (allData.length > 0) {
-    ws.getRange(1, 1, allData.length, 2).setValues(allData);
+  deleteAuthorRows(ds, data.author);
+  const ts   = new Date().toISOString();
+  const rows = flattenData(data, ts);
+  if (rows.length > 0) {
+    ds.getRange(Math.max(ds.getLastRow(), 1) + 1, 1, rows.length, 6).setValues(rows);
   }
-
-  // จัดรูปแบบ Header Row
-  ws.getRange("A1").setFontWeight("bold").setFontSize(13);
-  ws.getRange("A1:B1").setBackground("#1A2E4A").setFontColor("#FFFFFF");
-
-  formatSectionHeaders(ws, allData);
+  return { status: "ok", sheet: sheetName, rows: rows.length, author: data.author };
 }
 
-// ── FORMAT SECTION HEADERS ────────────────────────────────────────────
-function formatSectionHeaders(ws, data) {
-  data.forEach((row, i) => {
-    if (typeof row[0] === "string" && row[0].startsWith("===")) {
-      ws.getRange(i + 1, 1, 1, 2)
-        .setBackground("#E0F4F6")
-        .setFontWeight("bold")
-        .setFontColor("#0D7C8C");
+function flattenData(data, ts) {
+  const author = data.author;
+  const rows   = [];
+  const add    = (sec, key, val) =>
+    rows.push([ts, author, sec, String(key), JSON.stringify(val), data.deviceInfo || ""]);
+
+  add("meta","week",          data.week);
+  add("meta","overallStatus", data.overallStatus);
+  add("meta","note",          data.note || "");
+  add("ic",  "icEvents",      data.icEvents   || 0);
+  add("ic",  "protection",    data.protection || 100);
+  add("ic",  "overdueWo",     data.overdueWo  || 0);
+  add("ic",  "bypass",        data.bypass     || "");
+  add("ic",  "ytd",           data.ytd        || 0);
+  add("ic",  "target",        data.target     || 4);
+
+  (data.team        || []).forEach((p,i) => add("team",       i+"_"+p.name, p));
+  (data.risks       || []).forEach((r,i) => add("risk",       i+"_"+r.sys,  r));
+  (data.events      || []).forEach((e,i) => add("event",      i,            e));
+  (data.escalations || []).forEach((e,i) => add("escalation", i,            e));
+  (data.spares      || []).forEach((s,i) => add("spare",      i,            s));
+  (data.plans       || []).forEach((p,i) => add("plan",       i,            p));
+  return rows;
+}
+
+function deleteAuthorRows(sheet, author) {
+  const last = sheet.getLastRow();
+  if (last < 2) return;
+  const vals = sheet.getRange(2, 1, last - 1, 6).getValues();
+  for (let i = vals.length - 1; i >= 0; i--) {
+    if (vals[i][1] === author) sheet.deleteRow(i + 2);
+  }
+}
+
+// ── GET DRAFT ─────────────────────────────────────────────────────────
+function getDraft(ss, week) {
+  const sheetName = "DRAFT_" + week.replace("-", "_");
+  const ds = ss.getSheetByName(sheetName);
+  if (!ds || ds.getLastRow() < 2) return { status: "empty", week, contributors: [] };
+
+  const rows = ds.getRange(2, 1, ds.getLastRow() - 1, 6).getValues();
+  const byAuthor = {};
+  rows.forEach(row => {
+    const [ts, author, section, key, value] = row;
+    if (!byAuthor[author]) byAuthor[author] = { author, lastUpdate: ts, sections: {} };
+    if (!byAuthor[author].sections[section]) byAuthor[author].sections[section] = {};
+    try { byAuthor[author].sections[section][key] = JSON.parse(value); }
+    catch (e) { byAuthor[author].sections[section][key] = value; }
+    if (ts > byAuthor[author].lastUpdate) byAuthor[author].lastUpdate = ts;
+  });
+  return { status: "ok", week, contributors: Object.values(byAuthor), rawRows: rows.length };
+}
+
+// ── MERGE & SUBMIT ────────────────────────────────────────────────────
+function mergeAndSubmit(ss, week) {
+  const draft = getDraft(ss, week);
+  if (draft.status === "empty") return { status: "error", message: "ไม่พบ Draft สำหรับสัปดาห์ " + week };
+  const merged = buildMergedData(draft.contributors, week);
+  writeWeeklySheet(ss, merged);
+  updateMonthlySummary(ss, merged);
+  const ds = ss.getSheetByName("DRAFT_" + week.replace("-", "_"));
+  if (ds) { ds.setName("SUBMITTED_" + week.replace("-", "_")); ds.setTabColor("#1E7A46"); }
+  return { status: "ok", week, contributors: draft.contributors.map(c => c.author),
+           message: "Merge สำเร็จ จาก " + draft.contributors.length + " คน" };
+}
+
+function buildMergedData(contributors, week) {
+  const merged = {
+    week, weekLabel: "สัปดาห์ " + week,
+    author: "ทีม I&C (" + contributors.map(c => c.author).join(", ") + ")",
+    overallStatus: "ok", note: "", icEvents: 0, protection: 100,
+    overdueWo: 0, bypass: "", ytd: 0, target: 4,
+    team: [], risks: [], events: [], escalations: [], spares: [], plans: [],
+    timestamp: new Date().toISOString()
+  };
+  const priority = { danger: 2, warn: 1, ok: 0 };
+  contributors.forEach(c => {
+    const s = c.sections;
+    if (s.meta) {
+      if ((priority[s.meta.overallStatus] || 0) > (priority[merged.overallStatus] || 0))
+        merged.overallStatus = s.meta.overallStatus;
+      if (s.meta.note) merged.note += (merged.note ? " | " : "") + c.author + ": " + s.meta.note;
     }
+    if (s.ic) {
+      merged.icEvents   = Math.max(merged.icEvents,   s.ic.icEvents   || 0);
+      merged.protection = Math.min(merged.protection, s.ic.protection || 100);
+      merged.overdueWo  = Math.max(merged.overdueWo,  s.ic.overdueWo  || 0);
+      merged.ytd        = Math.max(merged.ytd,         s.ic.ytd        || 0);
+      merged.target     = s.ic.target || merged.target;
+      if (s.ic.bypass) merged.bypass += (merged.bypass ? ", " : "") + s.ic.bypass;
+    }
+    if (s.team) Object.values(s.team).forEach(p => {
+      const ex = merged.team.find(t => t.name === p.name);
+      if (ex) ex.status = p.status; else merged.team.push(p);
+    });
+    if (s.risk) Object.values(s.risk).forEach((r, i) => {
+      if (!merged.risks[i]) merged.risks[i] = r; else merged.risks[i].status = r.status;
+    });
+    ["event","escalation","spare","plan"].forEach(type => {
+      if (s[type]) Object.values(s[type]).forEach(item => {
+        if (item && typeof item === "object") merged[type + "s"].push(item);
+      });
+    });
+  });
+  return merged;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// WEEKLY SHEET
+// ══════════════════════════════════════════════════════════════════════
+function writeWeeklySheet(ss, data) {
+  const sheetName = "W_" + data.week.replace("-", "_");
+  let ws = ss.getSheetByName(sheetName);
+  if (!ws) { ws = ss.insertSheet(sheetName); ws.setTabColor("#0D7C8C"); }
+  ws.clearContents();
+  ws.setColumnWidth(1, 220); ws.setColumnWidth(2, 420);
+
+  const rows = [
+    ["I&C Weekly Report — BPK Power Plant", ""],
+    ["สัปดาห์",      data.weekLabel || data.week],
+    ["ผู้จัดทำ",     data.author],
+    ["สถานะโดยรวม",  data.overallStatus],
+    ["หมายเหตุ",     data.note || ""],
+    ["Timestamp",   data.timestamp],
+    ["",""],
+    ["=== สถานะโรงไฟฟ้า (I&C) ===",""],
+    ["I&C Events สัปดาห์นี้",            data.icEvents],
+    ["Protection System Readiness (%)", data.protection],
+    ["Critical WO เกิน Due Date",       data.overdueWo],
+    ["Bypass Systems",                  data.bypass || "ไม่มี"],
+    ["YTD I&C Events",                  data.ytd],
+    ["เป้า I&C Events ทั้งปี",          data.target],
+    ["",""],
+    ["=== Escalation ===",""],
+    ...(data.escalations||[]).map(e => [e.type+" ("+e.urgency+")", e.detail]),
+    ["",""],
+    ["=== Highlight Events ===",""],
+    ["วันที่","ระบบ | ประเภท | รายละเอียด | WO | สถานะ"],
+    ...(data.events||[]).map(e =>
+      [e.date, [e.sys,e.type,e.desc,e.wo,e.status].filter(Boolean).join(" | ")]),
+    ["",""],
+    ["=== Risk Register Status ===",""],
+    ["ระบบ","ความเสี่ยง | Score | สถานะ | เจ้าของ"],
+    ...(data.risks||[]).filter(r=>r&&r.sys).map(r =>
+      [r.sys, [r.risk,"Score:"+r.score,r.status,r.owner].filter(Boolean).join(" | ")]),
+    ["",""],
+    ["=== ทีมงาน ===",""],
+    ...(data.team||[]).map(p => [p.name, p.status]),
+    ["",""],
+    ["=== Spare Parts ===",""],
+    ["ชื่ออะไหล่","จำนวน | Min | สถานะ"],
+    ...(data.spares||[]).filter(s=>s&&s.name).map(s =>
+      [s.name, ["Qty:"+s.qty,"Min:"+s.min,s.status].join(" | ")]),
+    ["",""],
+    ["=== แผนสัปดาห์หน้า ===",""],
+    ...(data.plans||[]).filter(p=>p&&p.desc).map((p,i) =>
+      [(i+1)+". "+p.desc, p.owner+" ["+p.pri+"]"]),
+  ];
+
+  ws.getRange(1, 1, rows.length, 2).setValues(rows);
+  ws.getRange("A1:B1").setBackground("#1A2E4A").setFontColor("#FFFFFF").setFontWeight("bold").setFontSize(12);
+  rows.forEach((row, i) => {
+    if (typeof row[0]==="string" && row[0].startsWith("==="))
+      ws.getRange(i+1,1,1,2).setBackground("#E0F4F6").setFontWeight("bold").setFontColor("#0D7C8C");
   });
 }
 
-// ── UPDATE MONTHLY SUMMARY ────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+// MONTHLY SUMMARY
+// ══════════════════════════════════════════════════════════════════════
 function updateMonthlySummary(ss, data) {
-  // หา Month จาก Week
-  const weekStr = data.week; // "2025-W03"
-  const month = getMonthFromWeek(weekStr);
+  const month     = getMonthFromWeek(data.week);
   const sheetName = "Monthly_" + month;
-
   let ms = ss.getSheetByName(sheetName);
   if (!ms) {
     ms = ss.insertSheet(sheetName);
-    // สร้าง Header สำหรับ Monthly Summary
-    const monthHeaders = [
-      ["Monthly Summary — " + month, "", "", "", "", "", ""],
-      ["สัปดาห์", "I&C Events", "Protection %", "WO Overdue", "สถานะ", "ผู้จัดทำ", "หมายเหตุ"],
-    ];
-    ms.getRange(1, 1, 2, 7).setValues(monthHeaders);
+    ms.getRange("A1:G1").setValues([["Monthly Summary — "+month,"","","","","",""]]);
+    ms.getRange("A2:G2").setValues([["สัปดาห์","I&C Events","Protection %","WO Overdue","สถานะ","ผู้จัดทำ","หมายเหตุ"]]);
     ms.getRange("A1:G1").setBackground("#1A2E4A").setFontColor("#FFFFFF").setFontWeight("bold");
     ms.getRange("A2:G2").setBackground("#E0F4F6").setFontWeight("bold");
-
-    // สูตร Monthly Summary ที่ Auto-calculate
-    ms.getRange("I1").setValue("Monthly KPI Summary");
-    ms.getRange("I1").setFontWeight("bold").setBackground("#1A2E4A").setFontColor("#FFFFFF");
-    ms.getRange("I2").setValue("Total I&C Events:");
-    ms.getRange("J2").setFormula('=SUM(B3:B99)');
-    ms.getRange("I3").setValue("Avg Protection %:");
-    ms.getRange("J3").setFormula('=IFERROR(AVERAGE(C3:C99),"N/A")');
-    ms.getRange("I4").setValue("Max WO Overdue:");
-    ms.getRange("J4").setFormula('=IFERROR(MAX(D3:D99),"N/A")');
-    ms.getRange("I5").setValue("จำนวนสัปดาห์ที่รายงาน:");
-    ms.getRange("J5").setFormula('=COUNTA(A3:A99)');
+    ms.setTabColor("#1A2E4A");
+    ms.getRange(1,9).setValue("Monthly KPI").setBackground("#1A2E4A").setFontColor("#FFFFFF").setFontWeight("bold");
+    ms.getRange(2,9).setValue("Total I&C Events:");
+    ms.getRange(2,10).setFormula("=SUM(B3:B99)");
+    ms.getRange(3,9).setValue("Avg Protection %:");
+    ms.getRange(3,10).setFormula("=IFERROR(AVERAGE(C3:C99),\"N/A\")");
+    ms.getRange(4,9).setValue("Max WO Overdue:");
+    ms.getRange(4,10).setFormula("=IFERROR(MAX(D3:D99),\"N/A\")");
+    ms.getRange(5,9).setValue("สัปดาห์ที่รายงาน:");
+    ms.getRange(5,10).setFormula("=COUNTA(A3:A99)");
   }
-
-  // เพิ่มหรืออัปเดตแถวของสัปดาห์นี้
+  const label   = data.weekLabel || data.week;
   const lastRow = ms.getLastRow();
-  const existingWeeks = lastRow > 2
-    ? ms.getRange(3, 1, lastRow - 2, 1).getValues().map(r => r[0])
-    : [];
-  const existingIdx = existingWeeks.indexOf(data.weekLabel);
-  const targetRow = existingIdx >= 0 ? existingIdx + 3 : lastRow + 1;
-
-  ms.getRange(targetRow, 1, 1, 7).setValues([[
-    data.weekLabel,
-    data.icEvents,
-    data.protection,
-    data.overdueWo,
-    data.overallStatus,
-    data.author,
-    data.note || "",
+  const existing = lastRow > 2 ? ms.getRange(3,1,lastRow-2,1).getValues().map(r=>r[0]) : [];
+  const idx       = existing.indexOf(label);
+  const targetRow = idx >= 0 ? idx + 3 : lastRow + 1;
+  ms.getRange(targetRow,1,1,7).setValues([[
+    label, data.icEvents, data.protection,
+    data.overdueWo, data.overallStatus, data.author, data.note||""
   ]]);
-
-  // ระบายสี Row ตาม status
-  const rowColor = data.overallStatus === "ok" ? "#E8F5EE"
-    : data.overallStatus === "warn" ? "#FEF3E2" : "#FDECEA";
-  ms.getRange(targetRow, 1, 1, 7).setBackground(rowColor);
+  const rowColor = data.overallStatus==="ok"?"#E8F5EE":data.overallStatus==="warn"?"#FEF3E2":"#FDECEA";
+  ms.getRange(targetRow,1,1,7).setBackground(rowColor);
 }
 
-// ── GET HISTORY ───────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+// HISTORY & HELPERS
+// ══════════════════════════════════════════════════════════════════════
 function getHistory(ss) {
-  const sheets = ss.getSheets();
-  const weekSheets = sheets.filter(s => s.getName().startsWith("W_")).reverse();
-
-  return weekSheets.slice(0, 12).map(ws => {
-    const vals = ws.getRange(1, 1, 10, 2).getValues();
-    const toVal = (label) => {
-      const row = vals.find(r => r[0] === label);
-      return row ? row[1] : "";
-    };
-    return {
-      week: ws.getName().replace("W_", "").replace("_", "-"),
-      weekLabel: toVal("สัปดาห์"),
-      author: toVal("ผู้จัดทำ"),
-      overallStatus: toVal("สถานะโดยรวม"),
-      icEvents: toVal("I&C-related Events"),
-      protection: toVal("Protection System Readiness (%)"),
-      overdueWo: toVal("Critical WO เกิน Due Date"),
-    };
-  });
+  return ss.getSheets()
+    .filter(s => s.getName().startsWith("W_"))
+    .sort((a,b) => b.getName().localeCompare(a.getName()))
+    .slice(0, 12)
+    .map(ws => {
+      const vals  = ws.getRange(1,1,12,2).getValues();
+      const toVal = lbl => { const r=vals.find(r=>r[0]===lbl); return r?r[1]:""; };
+      return {
+        week:          ws.getName().replace("W_","").replace("_","-"),
+        weekLabel:     toVal("สัปดาห์"),
+        author:        toVal("ผู้จัดทำ"),
+        overallStatus: toVal("สถานะโดยรวม"),
+        icEvents:      toVal("I&C Events สัปดาห์นี้"),
+        protection:    toVal("Protection System Readiness (%)"),
+        overdueWo:     toVal("Critical WO เกิน Due Date"),
+      };
+    });
 }
 
-// ── GET MONTHLY DATA ──────────────────────────────────────────────────
 function getMonthlyData(ss, month) {
   const ms = ss.getSheetByName("Monthly_" + month);
   if (!ms) return { status: "not_found", month };
-  const lastRow = ms.getLastRow();
-  if (lastRow < 3) return { status: "empty", month, rows: [] };
-  const data = ms.getRange(3, 1, lastRow - 2, 7).getValues();
+  const last = ms.getLastRow();
+  if (last < 3) return { status: "empty", month, rows: [] };
   return {
     status: "ok", month,
-    rows: data.map(r => ({
-      weekLabel: r[0], icEvents: r[1], protection: r[2],
-      overdueWo: r[3], status: r[4], author: r[5], note: r[6],
+    rows: ms.getRange(3,1,last-2,7).getValues().map(r => ({
+      weekLabel:r[0], icEvents:r[1], protection:r[2],
+      overdueWo:r[3], status:r[4], author:r[5], note:r[6]
     })),
     summary: {
-      totalEvents: ms.getRange("J2").getValue(),
+      totalEvents:   ms.getRange("J2").getValue(),
       avgProtection: ms.getRange("J3").getValue(),
-      maxOverdue: ms.getRange("J4").getValue(),
+      maxOverdue:    ms.getRange("J4").getValue(),
       weeksReported: ms.getRange("J5").getValue(),
     }
   };
 }
 
-// ── HELPERS ───────────────────────────────────────────────────────────
 function getMonthFromWeek(weekStr) {
-  // "2025-W03" → คำนวณว่า Week นั้นอยู่ในเดือนอะไร
   const [year, week] = weekStr.split("-W").map(Number);
-  const d = new Date(year, 0, 1 + (week - 1) * 7);
-  const thYear = year + 543;
-  const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
-    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-  return monthNames[d.getMonth()] + thYear;
+  const d = new Date(Date.UTC(year, 0, 1 + (week-1)*7));
+  const months = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  return months[d.getMonth()] + (year + 543);
 }
 
 function getCurrentMonth() {
   const now = new Date();
-  const thYear = now.getFullYear() + 543;
-  const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
-    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-  return monthNames[now.getMonth()] + thYear;
+  const months = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  return months[now.getMonth()] + (now.getFullYear() + 543);
 }
 
-// ── TEST FUNCTION (รันจาก Apps Script Editor เพื่อทดสอบ) ──────────────
-function testWithMockData() {
-  const mockData = {
-    week: "2025-W03",
-    weekLabel: "สัปดาห์ที่ 3 · ปี 2568",
-    author: "หัวหน้าแผนก I&C",
-    overallStatus: "warn",
-    note: "สุเทพลา 2 วัน",
-    icEvents: 2,
-    protection: 83,
-    overdueWo: 5,
-    bypass: "Gas Detect 96HT-2 U2",
-    ytd: 3,
-    target: 4,
-    team: [
-      { name: "เพียรศิริ", status: "ok" },
-      { name: "สุเทพ", status: "warn" },
-      { name: "ดาวุธ", status: "ok" },
-    ],
-    risks: [
-      { sys: "CDM/MBM", risk: "CDM Probe เสื่อม", score: 20, status: "ongoing", owner: "ดาวุธ" },
-      { sys: "Gas Detect", risk: "EMI Trip", score: 20, status: "escalate", owner: "ยศธร" },
-    ],
-    events: [
-      { date: "2025-01-15", sys: "CDM/MBM", type: "derate", desc: "Runback U2 398→368MW", wo: "WO-MBM-0147", status: "done" },
-    ],
-    escalations: [
-      { type: "ขอ Budget", urgency: "high", detail: "Spare CDM Probe U1+U2" },
-    ],
-    spares: [
-      { name: "CDM Probe U1+U2", qty: 0, min: 2, status: "out" },
-      { name: "Gas Detect Sensor", qty: 1, min: 2, status: "low" },
-    ],
-    plans: [
-      { desc: "KT Session W1 DCS Mark IVe", owner: "สุเทพ", pri: "high" },
-      { desc: "ปิด WO MBH Stage 3 CV", owner: "ดาวุธ", pri: "med" },
-    ],
-    timestamp: new Date().toISOString(),
+// ── TEST ──────────────────────────────────────────────────────────────
+function testSaveDraft() {
+  const ss   = getSpreadsheet();
+  const mock = {
+    action:"saveDraft", week:"2025-W28",
+    weekLabel:"สัปดาห์ที่ 28 · ปี 2568",
+    author:"เพียรศิริ", overallStatus:"warn",
+    note:"ทดสอบระบบ", icEvents:1, protection:83,
+    overdueWo:5, bypass:"Gas Detect 96HT-2", ytd:3, target:4,
+    team:[{name:"เพียรศิริ",status:"ok"},{name:"สุเทพ",status:"warn"}],
+    risks:[{sys:"CDM/MBM",risk:"CDM Probe เสื่อม",score:20,status:"ongoing",owner:"ดาวุธ"}],
+    events:[{date:"2025-07-07",sys:"CDM",type:"derate",desc:"Runback U2",wo:"WO-001",status:"done"}],
+    escalations:[{type:"ขอ Budget",urgency:"high",detail:"CDM Probe"}],
+    spares:[{name:"CDM Probe",qty:0,min:2,status:"out"}],
+    plans:[{desc:"KT Session W1",owner:"สุเทพ",pri:"high"}],
+    timestamp:new Date().toISOString(), deviceInfo:"Desktop"
   };
-
-  const ss = getSpreadsheet();
-  writeWeeklySheet(ss, mockData);
-  updateMonthlySummary(ss, mockData);
-  Logger.log("Test completed successfully");
+  Logger.log(JSON.stringify(saveDraft(ss, mock)));
 }
