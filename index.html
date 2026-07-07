@@ -588,7 +588,7 @@ async function saveDraft() {
   if(!d.week){ showToast("กรุณาเลือกสัปดาห์ก่อน",true); return; }
   d.action = "saveDraft";
 
-  if(SCRIPT_URL==="YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"){
+  if(SCRIPT_URL==="https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec"){
     // Demo mode — เก็บใน localStorage แทน
     localStorage.setItem("ic_draft_demo_"+d.week, JSON.stringify({data:d,savedAt:new Date().toISOString()}));
     showToast(`💾 Demo: บันทึกร่างแล้ว (${d.author})`);
