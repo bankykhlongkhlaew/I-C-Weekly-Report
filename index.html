@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I&C Weekly Report — BPK</title>
+<style>
+:root {
+  --navy: #1A2E4A;
+  --teal: #0D7C8C;
+  --teal-l: #E0F4F6;
+  --gold: #E8A020;
+  --red: #C0392B;
+  --red-l: #FDECEA;
+  --amber: #B36A00;
+  --amber-l: #FEF3E2;
+  --green: #1E7A46;
+  --green-l: #E8F5EE;
+  --gray: #5F6B7A;
+  --gray-l: #F4F6F8;
+  --border: #DDE3EA;
+  --white: #FFFFFF;
+  --text: #1A2533;
+  --muted: #8896A3;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; background: #F0F3F7; color: var(--text); }
+
+/* ── TOP BAR ── */
+.topbar { background: var(--navy); color: white; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+.topbar h1 { font-size: 15px; font-weight: 600; }
+.topbar span { font-size: 12px; color: #A8BFD4; }
+
+/* ── TABS ── */
+.tabs { background: white; border-bottom: 1px solid var(--border); display: flex; padding: 0 24px; gap: 0; }
+.tab-btn { padding: 12px 18px; font-size: 13px; font-weight: 500; color: var(--muted); border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
+.tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); }
+.tab-btn:hover:not(.active) { color: var(--text); }
+
+/* ── LAYOUT ── */
+.container { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
+.section { background: white; border-radius: 10px; border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; }
+.section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.section-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.section-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.section-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+/* ── FORM ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.form-full { grid-column: 1 / -1; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+label { font-size: 12px; font-weight: 500; color: var(--gray); }
+.req { color: var(--red); }
+input, select, textarea {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; color: var(--text); background: white; transition: border .15s;
+  font-family: inherit;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal); }
+textarea { resize: vertical; min-height: 72px; }
+.hint { font-size: 11px; color: var(--muted); }
+
+/* ── STATUS SELECTOR ── */
+.status-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.status-btn { padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--border); font-size: 12px; font-weight: 500; cursor: pointer; background: white; color: var(--gray); transition: all .15s; }
+.status-btn.sel-ok { border-color: var(--green); background: var(--green-l); color: var(--green); }
+.status-btn.sel-warn { border-color: var(--amber); background: var(--amber-l); color: var(--amber); }
+.status-btn.sel-danger { border-color: var(--red); background: var(--red-l); color: var(--red); }
+.status-btn:hover { border-color: var(--teal); }
+
+/* ── EVENT ROWS ── */
+.event-list { display: flex; flex-direction: column; gap: 10px; }
+.event-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--gray-l); position: relative; }
+.event-card .remove-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+.event-card .remove-btn:hover { background: var(--red-l); color: var(--red); }
+.event-type-strip { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.type-pill { padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 500; cursor: pointer; border: 1.5px solid var(--border); background: white; color: var(--gray); }
+.type-pill.sel { color: white; border-color: transparent; }
+.type-pill.t-trip.sel { background: var(--red); }
+.type-pill.t-derate.sel { background: var(--amber); color: white; }
+.type-pill.t-delay.sel { background: #185FA5; }
+.type-pill.t-leak.sel { background: #6B3FA0; }
+.type-pill.t-good.sel { background: var(--green); }
+.add-btn { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1.5px dashed var(--teal); border-radius: 8px; color: var(--teal); background: var(--teal-l); font-size: 13px; font-weight: 500; cursor: pointer; width: 100%; justify-content: center; margin-top: 8px; }
+.add-btn:hover { background: #C8EEF2; }
+
+/* ── RISK ROWS ── */
+.risk-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.risk-table th { background: var(--gray-l); padding: 8px 10px; text-align: left; font-size: 11px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); }
+.risk-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.risk-table tr:last-child td { border-bottom: none; }
+.score-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 12px; }
+.s-critical { background: var(--red-l); color: var(--red); }
+.s-high { background: var(--amber-l); color: var(--amber); }
+.s-medium { background: #EBF5FB; color: #185FA5; }
+select.risk-sel { padding: 4px 8px; font-size: 12px; border-radius: 4px; }
+
+/* ── PERSON STATUS ── */
+.person-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.person-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+.person-name { font-size: 13px; font-weight: 500; }
+.person-role { font-size: 10px; color: var(--muted); }
+
+/* ── SPARE ROWS ── */
+.spare-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr 28px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.spare-row input, .spare-row select { padding: 6px 8px; font-size: 12px; }
+
+/* ── PREVIEW ── */
+#preview-panel { display: none; }
+.preview-card { border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+.pc-red { background: var(--red-l); border: 1px solid #FACCC8; }
+.pc-amber { background: var(--amber-l); border: 1px solid #F9D9AA; }
+.pc-gray { background: var(--gray-l); border: 1px solid var(--border); }
+.pc-label { font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
+.pc-val { font-size: 26px; font-weight: 600; margin-bottom: 2px; }
+.pc-note { font-size: 11px; }
+
+/* ── SUBMIT BAR ── */
+.submit-bar { background: white; border-top: 1px solid var(--border); padding: 14px 24px; position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; }
+.btn-primary { background: var(--teal); color: white; border: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.btn-primary:hover { background: #0A6B7A; }
+.btn-primary:disabled { background: var(--muted); cursor: default; }
+.btn-secondary { background: white; color: var(--teal); border: 1.5px solid var(--teal); padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn-secondary:hover { background: var(--teal-l); }
+
+/* ── TOAST ── */
+.toast { position: fixed; top: 20px; right: 20px; background: var(--green); color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.toast-err { background: var(--red); }
+
+/* ── TAB PANELS ── */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── RESPONSIVE ── */
+@media(max-width:600px){
+  .form-grid,.form-grid-3,.person-grid { grid-template-columns:1fr; }
+  .spare-row { grid-template-columns:1fr 1fr; }
+  .spare-row :nth-child(3),.spare-row :nth-child(4) { grid-column:1/-1; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>📋 I&C Weekly Report — BPK Power Plant</h1>
+  <span id="current-week">กำลังโหลด...</span>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('form')">กรอกข้อมูล</button>
+  <button class="tab-btn" onclick="switchTab('preview')">Preview รายงาน</button>
+  <button class="tab-btn" onclick="switchTab('history')">ประวัติรายสัปดาห์</button>
+  <button class="tab-btn" onclick="switchTab('guide')">วิธีใช้</button>
+</div>
+
+<!-- ══════════════ TAB: FORM ══════════════ -->
+<div id="tab-form" class="tab-panel active">
+<div class="container">
+
+<!-- WEEK SELECTOR -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#EBF5FB;">📅</div>
+    <div><div class="section-title">ข้อมูลทั่วไป</div><div class="section-sub">กำหนดสัปดาห์ที่รายงาน</div></div>
+  </div>
+  <div class="form-grid">
+    <div class="field">
+      <label>สัปดาห์ที่ <span class="req">*</span></label>
+      <input type="week" id="f-week" required>
+      <span class="hint">ระบบจะสร้าง Sheet แยกตามสัปดาห์อัตโนมัติ</span>
+    </div>
+    <div class="field">
+      <label>ผู้จัดทำรายงาน <span class="req">*</span></label>
+      <select id="f-author">
+        <option value="หัวหน้าแผนก I&C">หัวหน้าแผนก I&C</option>
+        <option value="เพียรศิริ">เพียรศิริ (วิศวกร)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>สถานะโดยรวมสัปดาห์นี้</label>
+      <div class="status-group">
+        <button class="status-btn" onclick="pickStatus(this,'ok')">✅ ปกติ</button>
+        <button class="status-btn" onclick="pickStatus(this,'warn')">⚠️ มีความเสี่ยง</button>
+        <button class="status-btn sel-danger" onclick="pickStatus(this,'danger')">🔴 ต้องรายงาน</button>
+      </div>
+      <input type="hidden" id="f-overall-status" value="danger">
+    </div>
+    <div class="field">
+      <label>หมายเหตุเพิ่มเติม</label>
+      <input type="text" id="f-note" placeholder="เช่น: สัปดาห์นี้สุเทพลา 2 วัน">
+    </div>
+  </div>
+</div>
+
+<!-- I&C STATUS STRIP -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--red-l);">⚡</div>
+    <div><div class="section-title">สถานะโรงไฟฟ้า (มุมมอง I&C)</div><div class="section-sub">3 ตัวชี้วัดเฉพาะแผนกวัดคุม</div></div>
+  </div>
+  <div class="form-grid-3">
+    <div class="field">
+      <label>I&C Events สัปดาห์นี้ (จำนวนครั้ง) <span class="req">*</span></label>
+      <input type="number" id="f-ic-events" min="0" value="0" placeholder="0">
+      <span class="hint">Trip/Derate/Delay ที่มาจาก I&C</span>
+    </div>
+    <div class="field">
+      <label>Protection System Readiness (%) <span class="req">*</span></label>
+      <input type="number" id="f-protection" min="0" max="100" value="100" placeholder="100">
+      <span class="hint">ดูจาก PowerEx (EGAT WiFi) — % ระบบ SIL Online</span>
+    </div>
+    <div class="field">
+      <label>Critical WO เกิน Due Date <span class="req">*</span></label>
+      <input type="number" id="f-overdue-wo" min="0" value="0" placeholder="0">
+      <span class="hint">WO ใน Risk Register ที่ยังค้างเกิน Due Date</span>
+    </div>
+    <div class="field">
+      <label>Bypass ระบบ SIL ที่มีอยู่ (ถ้ามี)</label>
+      <input type="text" id="f-bypass" placeholder="เช่น: Gas Detect 96HT-2 U2">
+    </div>
+    <div class="field">
+      <label>YTD I&C Events สะสมทั้งปี</label>
+      <input type="number" id="f-ytd" min="0" value="0" placeholder="0">
+      <span class="hint">นับรวมจากต้นปี</span>
+    </div>
+    <div class="field">
+      <label>เป้า I&C Events ทั้งปี</label>
+      <input type="number" id="f-target" min="0" value="4" placeholder="4">
+    </div>
+  </div>
+</div>
+
+<!-- ESCALATION -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--red-l);">🚨</div>
+    <div><div class="section-title">ต้องการการสนับสนุนจากผู้บริหาร</div><div class="section-sub">เฉพาะสิ่งที่ต้องการ Action จากผู้บริหาร</div></div>
+  </div>
+  <div id="esc-list" class="event-list"></div>
+  <button class="add-btn" onclick="addEscalation()">+ เพิ่มรายการ Escalation</button>
+</div>
+
+<!-- EVENTS -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#FEF3E2;">📌</div>
+    <div><div class="section-title">Highlight เหตุการณ์สัปดาห์นี้</div><div class="section-sub">เหตุการณ์ที่กระทบการเดินเครื่อง</div></div>
+  </div>
+  <div id="event-list" class="event-list"></div>
+  <button class="add-btn" onclick="addEvent()">+ เพิ่มเหตุการณ์</button>
+</div>
+
+<!-- RISK TOP -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#EBF5FB;">⚠️</div>
+    <div><div class="section-title">ความเสี่ยงสูง — สถานะสัปดาห์นี้</div><div class="section-sub">อัปเดตสถานะจาก Risk Register</div></div>
+  </div>
+  <table class="risk-table">
+    <thead>
+      <tr>
+        <th>#</th><th>ระบบ</th><th>ความเสี่ยง</th><th>Score</th><th>สถานะสัปดาห์นี้</th><th>เจ้าของ</th>
+      </tr>
+    </thead>
+    <tbody id="risk-tbody"></tbody>
+  </table>
+</div>
+
+<!-- TEAM STATUS -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--green-l);">👥</div>
+    <div><div class="section-title">สถานะทีมงาน</div><div class="section-sub">ความพร้อมของทีมสัปดาห์นี้</div></div>
+  </div>
+  <div class="person-grid" id="person-grid"></div>
+</div>
+
+<!-- SPARE PARTS -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#F5EEF8;">🔩</div>
+    <div><div class="section-title">Spare Parts — รายการสำคัญ</div><div class="section-sub">เฉพาะ Spare ที่กระทบความเสี่ยง</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr 28px;gap:8px;margin-bottom:6px;">
+    <span style="font-size:11px;color:var(--muted);font-weight:500;">ชื่ออะไหล่</span>
+    <span style="font-size:11px;color:var(--muted);font-weight:500;">จำนวนในคลัง</span>
+    <span style="font-size:11px;color:var(--muted);font-weight:500;">Min Stock</span>
+    <span style="font-size:11px;color:var(--muted);font-weight:500;">สถานะ</span>
+    <span></span>
+  </div>
+  <div id="spare-list"></div>
+  <button class="add-btn" onclick="addSpare()">+ เพิ่มรายการ Spare</button>
+</div>
+
+<!-- NEXT WEEK PLAN -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:var(--teal-l);">📅</div>
+    <div><div class="section-title">แผนสัปดาห์หน้า</div><div class="section-sub">งานหลัก 5 อันดับแรก</div></div>
+  </div>
+  <div id="plan-list" class="event-list"></div>
+  <button class="add-btn" onclick="addPlan()">+ เพิ่มแผนงาน</button>
+</div>
+
+</div><!-- /container -->
+
+<!-- SUBMIT BAR -->
+<div class="submit-bar">
+  <div style="font-size:12px;color:var(--muted);">
+    <span id="submit-status">กรอกข้อมูลให้ครบแล้วกด Preview เพื่อตรวจสอบก่อน Submit</span>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <button class="btn-secondary" onclick="switchTab('preview');buildPreview()">👁 Preview</button>
+    <button class="btn-primary" id="submit-btn" onclick="submitReport()">
+      <span>📤 Submit รายงาน</span>
+    </button>
+  </div>
+</div>
+</div><!-- /tab-form -->
+
+<!-- ══════════════ TAB: PREVIEW ══════════════ -->
+<div id="tab-preview" class="tab-panel">
+<div class="container">
+  <div id="preview-content" style="background:white;border-radius:10px;border:1px solid var(--border);padding:24px;">
+    <p style="color:var(--muted);text-align:center;padding:40px;">กรอกข้อมูลในแท็บ "กรอกข้อมูล" แล้วกด Preview</p>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════ TAB: HISTORY ══════════════ -->
+<div id="tab-history" class="tab-panel">
+<div class="container">
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--teal-l);">📊</div>
+      <div><div class="section-title">ประวัติรายสัปดาห์</div><div class="section-sub">ดึงข้อมูลจาก Google Sheets</div></div>
+    </div>
+    <div id="history-content">
+      <div style="background:var(--gray-l);border-radius:8px;padding:20px;text-align:center;color:var(--muted);">
+        <p style="font-size:14px;margin-bottom:8px;">🔗 เชื่อมต่อ Google Sheets เพื่อดูประวัติ</p>
+        <p style="font-size:12px;">ใส่ Script URL จาก Google Apps Script ในไฟล์ config.js</p>
+        <p style="font-size:11px;margin-top:8px;color:#B0BEC5;">หรือ <a href="#" onclick="loadMockHistory();return false;" style="color:var(--teal);">ดูตัวอย่างข้อมูล Mock</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════ TAB: GUIDE ══════════════ -->
+<div id="tab-guide" class="tab-panel">
+<div class="container">
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--teal-l);">📖</div>
+      <div><div class="section-title">วิธีติดตั้งและใช้งาน</div></div>
+    </div>
+    <div style="line-height:1.8;color:var(--text);">
+
+      <h3 style="font-size:14px;font-weight:600;color:var(--navy);margin:16px 0 8px;">ขั้นที่ 1 — ตั้งค่า Google Apps Script</h3>
+      <ol style="padding-left:20px;font-size:13px;color:var(--gray);">
+        <li>เปิด Google Sheets ใหม่ → ตั้งชื่อ "IC Weekly Report 2568"</li>
+        <li>เมนู Extensions → Apps Script</li>
+        <li>วาง Code จากไฟล์ <code style="background:var(--gray-l);padding:2px 6px;border-radius:4px;">Code.gs</code> ลงใน Editor</li>
+        <li>กด Deploy → New Deployment → Web App</li>
+        <li>ตั้ง "Who has access" = Anyone → Deploy → คัดลอก URL</li>
+      </ol>
+
+      <h3 style="font-size:14px;font-weight:600;color:var(--navy);margin:16px 0 8px;">ขั้นที่ 2 — ตั้งค่า config.js</h3>
+      <div style="background:#1A2533;color:#A8D8EA;padding:14px;border-radius:8px;font-family:monospace;font-size:12px;margin:8px 0;">
+        <div style="color:#888;margin-bottom:6px;">// config.js — แก้ค่านี้หลัง Deploy</div>
+        <div>const SCRIPT_URL = <span style="color:#F9E784;">"https://script.google.com/macros/s/YOUR_ID/exec"</span>;</div>
+        <div>const SHEET_NAME = <span style="color:#F9E784;">"IC_Weekly_2568"</span>;</div>
+      </div>
+
+      <h3 style="font-size:14px;font-weight:600;color:var(--navy);margin:16px 0 8px;">ขั้นที่ 3 — อัปโหลดขึ้น GitHub Pages</h3>
+      <ol style="padding-left:20px;font-size:13px;color:var(--gray);">
+        <li>สร้าง Repo ใหม่ใน GitHub → อัปโหลด <code style="background:var(--gray-l);padding:2px 6px;border-radius:4px;">index.html</code> + <code style="background:var(--gray-l);padding:2px 6px;border-radius:4px;">config.js</code></li>
+        <li>Settings → Pages → Branch: main → Save</li>
+        <li>URL จะเป็น <code style="background:var(--gray-l);padding:2px 6px;border-radius:4px;">https://YOUR-NAME.github.io/ic-report/</code></li>
+        <li>แชร์ URL ให้ทีม — เปิดได้ทุก Device ทุก Browser</li>
+      </ol>
+
+      <h3 style="font-size:14px;font-weight:600;color:var(--navy);margin:16px 0 8px;">วิธีใช้รายสัปดาห์</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">
+        <div style="background:var(--green-l);border-radius:8px;padding:12px;">
+          <div style="font-weight:600;color:var(--green);margin-bottom:6px;">📝 ทุกวันจันทร์</div>
+          <div style="color:var(--gray);">1. เปิด URL → กรอกข้อมูลสัปดาห์ที่ผ่านมา<br>2. กด Preview ตรวจสอบ<br>3. Submit → ข้อมูลบันทึก Google Sheets อัตโนมัติ</div>
+        </div>
+        <div style="background:var(--teal-l);border-radius:8px;padding:12px;">
+          <div style="font-weight:600;color:var(--teal);margin-bottom:6px;">📊 สิ้นเดือน</div>
+          <div style="color:var(--gray);">เปิด Google Sheets → Tab "Monthly_Summary"<br>จะ Auto-aggregate ข้อมูลทุกสัปดาห์ในเดือนนั้นให้อัตโนมัติ</div>
+        </div>
+      </div>
+
+      <div style="background:var(--amber-l);border-radius:8px;padding:12px;margin-top:12px;font-size:12px;">
+        <strong style="color:var(--amber);">⚠️ หมายเหตุ PowerEx:</strong>
+        <span style="color:var(--gray);"> ค่า Protection System Readiness ต้องกรอกเองโดยดูจาก PowerEx บน EGAT WiFi — ระบบไม่สามารถดึงข้อมูลจาก 10.212.28.3 โดยอัตโนมัติได้เพราะเป็น Private IP Network</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG (แก้ตรงนี้หลัง Deploy Google Apps Script) ──
+const SCRIPT_URL = "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE";
+
+// ── INITIAL DATA ──
+const TEAM = [
+  {id:"ps", init:"พศ", name:"เพียรศิริ", role:"วิศวกร", color:"#185FA5", bg:"#E6F1FB"},
+  {id:"st", init:"สท", name:"สุเทพ", role:"Foreman DCS", color:"#A32D2D", bg:"#FCEBEB"},
+  {id:"dw", init:"ดว", name:"ดาวุธ", role:"Foreman Zone Lead", color:"#633806", bg:"#FAEEDA"},
+  {id:"tc", init:"ธช", name:"ธวัชชัย", role:"ช่าง CV", color:"#27500A", bg:"#EAF3DE"},
+  {id:"nc", init:"นช", name:"ณัฐชัย", role:"ช่าง Transmitter", color:"#27500A", bg:"#EAF3DE"},
+  {id:"yt", init:"ยธ", name:"ยศธร", role:"ช่าง Gas Detect", color:"#444441", bg:"#F1EFE8"},
+];
+
+const RISK_REGISTER = [
+  {sys:"CDM/MBM", risk:"CDM Probe เสื่อม → Runback/Trip", score:20, owner:"ดาวุธ"},
+  {sys:"Gas Detect", risk:"EMI → SIL 2oo3 → GT Trip", score:20, owner:"ยศธร"},
+  {sys:"DCS/CBOP", risk:"Download ขณะ Online → Trip", score:20, owner:"สุเทพ"},
+  {sys:"MBH Stage3", risk:"CV Tracking Fault → Trip", score:16, owner:"ธวัชชัย"},
+  {sys:"MBP Fuel Gas", risk:"Gas Leak (LEL)", score:15, owner:"ยศธร"},
+];
+
+// ── INIT ──
+document.addEventListener("DOMContentLoaded", () => {
+  setCurrentWeek();
+  renderTeam();
+  renderRiskTable();
+  addSpare(); addSpare();
+  addEscalation();
+  addEvent();
+  addPlan(); addPlan();
+});
+
+function setCurrentWeek() {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  const yr = now.getFullYear();
+  document.getElementById("f-week").value = `${yr}-W${String(weekNo).padStart(2,"0")}`;
+  document.getElementById("current-week").textContent = `สัปดาห์ที่ ${weekNo} · ปี ${yr + 543}`;
+}
+
+function switchTab(name) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-"+name).classList.add("active");
+  event.target.classList.add("active");
+  if(name === "preview") buildPreview();
+}
+
+function pickStatus(btn, val) {
+  document.querySelectorAll(".status-btn").forEach(b => b.className = "status-btn");
+  btn.classList.add("sel-"+val);
+  document.getElementById("f-overall-status").value = val;
+}
+
+// ── RENDER TEAM ──
+function renderTeam() {
+  const grid = document.getElementById("person-grid");
+  grid.innerHTML = TEAM.map(p => `
+    <div class="person-card">
+      <div class="avatar" style="background:${p.bg};color:${p.color};">${p.init}</div>
+      <div style="flex:1;">
+        <div class="person-name">${p.name}</div>
+        <div class="person-role">${p.role}</div>
+      </div>
+      <select id="person-${p.id}" style="padding:4px 8px;font-size:11px;border-radius:4px;border:1px solid var(--border);">
+        <option value="ok">✅ ปกติ</option>
+        <option value="warn">⚠️ ลา/ประชุม</option>
+        <option value="absent">❌ ไม่อยู่</option>
+      </select>
+    </div>
+  `).join("");
+}
+
+// ── RENDER RISK TABLE ──
+function renderRiskTable() {
+  const tbody = document.getElementById("risk-tbody");
+  tbody.innerHTML = RISK_REGISTER.map((r,i) => {
+    const cls = r.score >= 16 ? "s-critical" : r.score >= 10 ? "s-high" : "s-medium";
+    return `<tr>
+      <td style="font-weight:600;color:var(--muted);">#${i+1}</td>
+      <td style="font-weight:500;">${r.sys}</td>
+      <td style="color:var(--gray);">${r.risk}</td>
+      <td><span class="score-badge ${cls}">${r.score}</span></td>
+      <td><select class="risk-sel" id="risk-status-${i}">
+        <option value="ongoing">🔴 ยังดำเนินการ</option>
+        <option value="monitor">🟡 ติดตาม</option>
+        <option value="resolved">🟢 แก้ไขแล้ว</option>
+        <option value="escalate">🚨 Escalate</option>
+      </select></td>
+      <td style="font-size:11px;color:var(--teal);">${r.owner}</td>
+    </tr>`;
+  }).join("");
+}
+
+// ── DYNAMIC ROWS ──
+let escCount = 0;
+function addEscalation() {
+  escCount++;
+  const id = "esc"+escCount;
+  const div = document.createElement("div");
+  div.className = "event-card";
+  div.id = id;
+  div.innerHTML = `
+    <button class="remove-btn" onclick="removeItem('${id}')">✕</button>
+    <div class="form-grid">
+      <div class="field">
+        <label>ประเภท</label>
+        <select id="${id}-type">
+          <option>ขอ Budget</option>
+          <option>Escalate Vendor/GE</option>
+          <option>ขออนุมัติ MOC</option>
+          <option>ขอกำลังคนเพิ่ม</option>
+          <option>อื่นๆ</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>ความเร่งด่วน</label>
+        <select id="${id}-urgency">
+          <option value="high">🔴 เร่งด่วน</option>
+          <option value="medium">🟡 ปกติ</option>
+        </select>
+      </div>
+      <div class="field form-full">
+        <label>รายละเอียด Action ที่ต้องการ</label>
+        <input type="text" id="${id}-detail" placeholder="เช่น: ขอ Budget สั่ง CDM Probe U1+U2 วงเงิน xxx บาท">
+      </div>
+    </div>`;
+  document.getElementById("esc-list").appendChild(div);
+}
+
+let evCount = 0;
+function addEvent() {
+  evCount++;
+  const id = "ev"+evCount;
+  const div = document.createElement("div");
+  div.className = "event-card";
+  div.id = id;
+  div.innerHTML = `
+    <button class="remove-btn" onclick="removeItem('${id}')">✕</button>
+    <div class="event-type-strip">
+      <span style="font-size:11px;color:var(--muted);align-self:center;">ประเภท:</span>
+      <button class="type-pill t-trip" onclick="pickType(this,'trip','${id}')">🔴 Trip</button>
+      <button class="type-pill t-derate" onclick="pickType(this,'derate','${id}')">🟠 Derate/Runback</button>
+      <button class="type-pill t-delay" onclick="pickType(this,'delay','${id}')">🔵 Startup Delay</button>
+      <button class="type-pill t-leak" onclick="pickType(this,'leak','${id}')">🟣 Gas/Fluid Leak</button>
+      <button class="type-pill t-good sel" onclick="pickType(this,'good','${id}')">🟢 งานดีเสร็จตามแผน</button>
+    </div>
+    <input type="hidden" id="${id}-type" value="good">
+    <div class="form-grid">
+      <div class="field">
+        <label>วันที่เกิดเหตุ</label>
+        <input type="date" id="${id}-date">
+      </div>
+      <div class="field">
+        <label>ระบบ / Tag No.</label>
+        <input type="text" id="${id}-sys" placeholder="เช่น: CDM/MBM, Gas Detect 96HT">
+      </div>
+      <div class="field form-full">
+        <label>คำอธิบายเหตุการณ์</label>
+        <input type="text" id="${id}-desc" placeholder="เช่น: CDM High → Runback U2 398→368MW ทีม: ดาวุธ">
+      </div>
+      <div class="field">
+        <label>WO No.</label>
+        <input type="text" id="${id}-wo" placeholder="WO-MBM-xxxx">
+      </div>
+      <div class="field">
+        <label>สถานะ</label>
+        <select id="${id}-status">
+          <option value="open">🔴 ยังค้างอยู่</option>
+          <option value="done" selected>🟢 แก้ไขแล้ว</option>
+          <option value="monitor">🟡 ติดตาม</option>
+        </select>
+      </div>
+    </div>`;
+  document.getElementById("event-list").appendChild(div);
+}
+
+let planCount = 0;
+function addPlan() {
+  planCount++;
+  const id = "plan"+planCount;
+  const div = document.createElement("div");
+  div.className = "event-card";
+  div.id = id;
+  div.innerHTML = `
+    <button class="remove-btn" onclick="removeItem('${id}')">✕</button>
+    <div class="form-grid">
+      <div class="field form-full">
+        <label>แผนงาน / Action Item</label>
+        <input type="text" id="${id}-desc" placeholder="เช่น: KT Session W1 — DCS Mark IVe (สุเทพสอน)">
+      </div>
+      <div class="field">
+        <label>ผู้รับผิดชอบ</label>
+        <select id="${id}-owner">
+          <option value="">เลือกคน...</option>
+          ${TEAM.map(p=>`<option value="${p.name}">${p.name}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field">
+        <label>Priority</label>
+        <select id="${id}-pri">
+          <option value="high">🔴 สูง</option>
+          <option value="med" selected>🟡 ปกติ</option>
+          <option value="low">🟢 ต่ำ</option>
+        </select>
+      </div>
+    </div>`;
+  document.getElementById("plan-list").appendChild(div);
+}
+
+let spareCount = 0;
+function addSpare() {
+  spareCount++;
+  const id = "sp"+spareCount;
+  const div = document.createElement("div");
+  div.className = "spare-row";
+  div.id = id;
+  div.innerHTML = `
+    <input type="text" id="${id}-name" placeholder="ชื่ออะไหล่ เช่น CDM Probe U1">
+    <input type="number" id="${id}-qty" placeholder="จำนวน" min="0">
+    <input type="number" id="${id}-min" placeholder="Min" min="0">
+    <select id="${id}-status">
+      <option value="ok">✅ พอ</option>
+      <option value="low">⚠️ น้อย</option>
+      <option value="out">❌ หมด</option>
+      <option value="ordered">📦 สั่งซื้อแล้ว</option>
+    </select>
+    <button onclick="removeItem('${id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;">✕</button>`;
+  document.getElementById("spare-list").appendChild(div);
+}
+
+function removeItem(id) { document.getElementById(id)?.remove(); }
+function pickType(btn, val, id) {
+  btn.closest(".event-type-strip").querySelectorAll(".type-pill").forEach(b => b.classList.remove("sel"));
+  btn.classList.add("sel");
+  document.getElementById(id+"-type").value = val;
+}
+
+// ── COLLECT DATA ──
+function collectData() {
+  const week = document.getElementById("f-week").value;
+  const [yr, wk] = week.split("-W");
+  return {
+    week, weekLabel: `สัปดาห์ที่ ${parseInt(wk)} · ปี ${parseInt(yr)+543}`,
+    author: document.getElementById("f-author").value,
+    overallStatus: document.getElementById("f-overall-status").value,
+    note: document.getElementById("f-note").value,
+    icEvents: parseInt(document.getElementById("f-ic-events").value)||0,
+    protection: parseInt(document.getElementById("f-protection").value)||0,
+    overdueWo: parseInt(document.getElementById("f-overdue-wo").value)||0,
+    bypass: document.getElementById("f-bypass").value,
+    ytd: parseInt(document.getElementById("f-ytd").value)||0,
+    target: parseInt(document.getElementById("f-target").value)||4,
+    team: TEAM.map(p => ({name:p.name, status: document.getElementById("person-"+p.id)?.value||"ok"})),
+    risks: RISK_REGISTER.map((r,i) => ({...r, status: document.getElementById("risk-status-"+i)?.value||"ongoing"})),
+    events: collectDynamic("event-list", ["type","date","sys","desc","wo","status"]),
+    escalations: collectDynamic("esc-list", ["type","urgency","detail"]),
+    spares: collectSparse(),
+    plans: collectDynamic("plan-list", ["desc","owner","pri"]),
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function collectDynamic(listId, fields) {
+  return Array.from(document.getElementById(listId).children).map(el => {
+    const id = el.id;
+    const obj = {};
+    fields.forEach(f => { obj[f] = document.getElementById(id+"-"+f)?.value||""; });
+    return obj;
+  }).filter(o => Object.values(o).some(v=>v));
+}
+
+function collectSparse() {
+  return Array.from(document.getElementById("spare-list").children).map(el => {
+    const id = el.id;
+    return {
+      name: document.getElementById(id+"-name")?.value||"",
+      qty: document.getElementById(id+"-qty")?.value||"",
+      min: document.getElementById(id+"-min")?.value||"",
+      status: document.getElementById(id+"-status")?.value||"ok",
+    };
+  }).filter(o => o.name);
+}
+
+// ── BUILD PREVIEW ──
+function buildPreview() {
+  const d = collectData();
+  const statusBg = d.overallStatus==="ok"?"#E8F5EE":d.overallStatus==="warn"?"#FEF3E2":"#FDECEA";
+  const statusColor = d.overallStatus==="ok"?"#1E7A46":d.overallStatus==="warn"?"#B36A00":"#C0392B";
+  const statusLabel = d.overallStatus==="ok"?"✅ ปกติ":d.overallStatus==="warn"?"⚠️ มีความเสี่ยง":"🔴 ต้องรายงาน";
+  const protColor = d.protection < 90 ? "#C0392B" : d.protection < 100 ? "#B36A00" : "#1E7A46";
+  const overdueColor = d.overdueWo > 3 ? "#C0392B" : d.overdueWo > 0 ? "#B36A00" : "#1E7A46";
+
+  document.getElementById("preview-content").innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h2 style="font-size:16px;font-weight:700;color:var(--navy);">I&C Maintenance — Weekly Report</h2>
+        <p style="font-size:12px;color:var(--muted);">${d.weekLabel} · BPK Gas Turbine 1,500 MW · จัดทำโดย: ${d.author}</p>
+      </div>
+      <span style="background:${statusBg};color:${statusColor};padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;">${statusLabel}</span>
+    </div>
+
+    <h3 style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;">สถานะโรงไฟฟ้า (มุมมอง I&C)</h3>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+      <div class="preview-card" style="background:${d.icEvents>0?"#FDECEA":"#E8F5EE"};border:1px solid ${d.icEvents>0?"#FACCC8":"#A8D5B5"};">
+        <div style="font-size:10px;color:${d.icEvents>0?"#C0392B":"#1E7A46"};font-weight:500;">I&C-related Events</div>
+        <div style="font-size:28px;font-weight:700;color:${d.icEvents>0?"#C0392B":"#1E7A46"};">${d.icEvents} <span style="font-size:13px;font-weight:400;">เหตุการณ์</span></div>
+        <div style="font-size:10px;color:${d.icEvents>0?"#C0392B":"#1E7A46"};">YTD: ${d.ytd} / เป้า ≤ ${d.target}</div>
+      </div>
+      <div class="preview-card" style="background:${d.protection<100?"#FEF3E2":"#E8F5EE"};border:1px solid ${d.protection<100?"#F9D9AA":"#A8D5B5"};">
+        <div style="font-size:10px;color:${protColor};font-weight:500;">Protection Readiness</div>
+        <div style="font-size:28px;font-weight:700;color:${protColor};">${d.protection}%</div>
+        <div style="background:#DDD;border-radius:3px;height:5px;margin:4px 0;overflow:hidden;"><div style="width:${d.protection}%;height:100%;background:${protColor};border-radius:3px;"></div></div>
+        <div style="font-size:10px;color:${protColor};">${d.bypass||"ครบทุกระบบ"}</div>
+      </div>
+      <div class="preview-card" style="background:${d.overdueWo>0?"#FEF3E2":"var(--gray-l)"};border:1px solid ${d.overdueWo>0?"#F9D9AA":"var(--border)"};">
+        <div style="font-size:10px;color:${overdueColor};font-weight:500;">Critical WO เกิน Due Date</div>
+        <div style="font-size:28px;font-weight:700;color:${overdueColor};">${d.overdueWo} <span style="font-size:13px;font-weight:400;">รายการ</span></div>
+        <div style="font-size:10px;color:${overdueColor};">จาก Risk Register 13 รายการ</div>
+      </div>
+    </div>
+
+    ${d.escalations.length ? `
+    <h3 style="font-size:11px;font-weight:600;color:#C0392B;text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;">🚨 ต้องการการสนับสนุนจากผู้บริหาร</h3>
+    <div style="background:#FDECEA;border:1px solid #FACCC8;border-radius:8px;padding:12px;margin-bottom:16px;">
+      ${d.escalations.map(e=>`<div style="display:flex;gap:8px;font-size:12px;color:#C0392B;padding:3px 0;">→ <strong>${e.type||""}</strong>${e.detail?" — "+e.detail:""}</div>`).join("")}
+    </div>` : ""}
+
+    ${d.events.length ? `
+    <h3 style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;">Highlight เหตุการณ์</h3>
+    <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px;">
+      ${d.events.map(e => {
+        const colors = {trip:"#C0392B",derate:"#B36A00",delay:"#185FA5",leak:"#6B3FA0",good:"#1E7A46"};
+        const c = colors[e.type]||"#888";
+        return `<div style="display:flex;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);align-items:flex-start;">
+          <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;margin-top:4px;"></div>
+          <div><div style="font-size:12px;font-weight:500;">${e.sys||""} ${e.desc||""}</div>
+          <div style="font-size:10px;color:var(--muted);">${e.date||""} · ${e.wo||""}</div></div>
+        </div>`;
+      }).join("")}
+    </div>` : ""}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div>
+        <h3 style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;">ทีมงาน</h3>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+          ${d.team.map((p,i) => {
+            const sc = p.status==="ok"?"#1E7A46":p.status==="warn"?"#B36A00":"#C0392B";
+            const sb = p.status==="ok"?"#E8F5EE":p.status==="warn"?"#FEF3E2":"#FDECEA";
+            const sl = p.status==="ok"?"✅ ปกติ":p.status==="warn"?"⚠️ ลา/ประชุม":"❌ ไม่อยู่";
+            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:${i<d.team.length-1?"1px solid var(--border)":"none"};">
+              <div style="width:24px;height:24px;border-radius:50%;background:${TEAM[i]?.bg||"#EEE"};color:${TEAM[i]?.color||"#333"};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;">${TEAM[i]?.init||""}</div>
+              <span style="flex:1;font-size:12px;">${p.name}</span>
+              <span style="background:${sb};color:${sc};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;">${sl}</span>
+            </div>`;
+          }).join("")}
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;">Spare Parts</h3>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+          ${d.spares.map((sp,i) => {
+            const sc = sp.status==="ok"?"#1E7A46":sp.status==="out"?"#C0392B":sp.status==="ordered"?"#185FA5":"#B36A00";
+            const sl = {ok:"✅ พอ",low:"⚠️ น้อย",out:"❌ หมด",ordered:"📦 สั่งแล้ว"}[sp.status]||"";
+            return `<div style="display:flex;align-items:center;padding:6px 10px;border-bottom:${i<d.spares.length-1?"1px solid var(--border)":"none"};gap:6px;">
+              <span style="flex:1;font-size:12px;">${sp.name}</span>
+              <span style="font-size:11px;color:var(--muted);">Qty: ${sp.qty}</span>
+              <span style="font-size:10px;font-weight:500;color:${sc};">${sl}</span>
+            </div>`;
+          }).join("")||`<div style="padding:10px;text-align:center;font-size:12px;color:var(--muted);">ไม่มีรายการ</div>`}
+        </div>
+      </div>
+    </div>
+
+    ${d.plans.length ? `
+    <h3 style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;">แผนสัปดาห์หน้า</h3>
+    <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+      ${d.plans.map((p,i) => `<div style="display:flex;gap:8px;align-items:center;padding:7px 12px;border-bottom:${i<d.plans.length-1?"1px solid var(--border)":"none"};">
+        <span style="font-size:12px;font-weight:600;color:var(--teal);width:18px;">${i+1}.</span>
+        <span style="flex:1;font-size:12px;">${p.desc}</span>
+        <span style="font-size:11px;color:var(--teal);font-weight:500;">${p.owner}</span>
+      </div>`).join("")}
+    </div>` : ""}
+
+    <div style="text-align:right;font-size:10px;color:var(--muted);margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+      จัดทำโดย: ${d.author} · BPK Power Plant · ${new Date().toLocaleDateString("th-TH",{year:"numeric",month:"long",day:"numeric"})} · Sheet แนบ: Risk Register · Spare List · KPI Tracker
+    </div>`;
+}
+
+// ── SUBMIT ──
+async function submitReport() {
+  const d = collectData();
+  if(!d.week) { showToast("กรุณาเลือกสัปดาห์ก่อน", true); return; }
+  const btn = document.getElementById("submit-btn");
+  btn.disabled = true;
+  btn.innerHTML = "<span>⏳ กำลัง Submit...</span>";
+  document.getElementById("submit-status").textContent = "กำลังบันทึกข้อมูลลง Google Sheets...";
+
+  if(SCRIPT_URL === "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE") {
+    setTimeout(() => {
+      showToast(`✅ Demo Mode: บันทึกสำเร็จ! (สัปดาห์ ${d.week})`);
+      btn.disabled = false;
+      btn.innerHTML = "<span>📤 Submit รายงาน</span>";
+      document.getElementById("submit-status").textContent = "⚠️ Demo Mode — ตั้งค่า SCRIPT_URL เพื่อบันทึกจริง";
+    }, 1200);
+    return;
+  }
+
+  try {
+    const resp = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify(d),
+    });
+    const result = await resp.json();
+    if(result.status === "ok") {
+      showToast(`✅ บันทึกสำเร็จ! Sheet: ${d.week}`);
+      document.getElementById("submit-status").textContent = `✅ บันทึกแล้ว — Sheet ${d.week}`;
+    } else {
+      throw new Error(result.message||"Unknown error");
+    }
+  } catch(err) {
+    showToast("❌ บันทึกไม่สำเร็จ: "+err.message, true);
+    document.getElementById("submit-status").textContent = "❌ เกิดข้อผิดพลาด — ลองใหม่อีกครั้ง";
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = "<span>📤 Submit รายงาน</span>";
+  }
+}
+
+function showToast(msg, isErr=false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast" + (isErr?" toast-err":"");
+  t.style.display = "block";
+  setTimeout(() => t.style.display = "none", 3500);
+}
+
+function loadMockHistory() {
+  const weeks = [
+    {week:"W02",events:1,protection:100,overdue:3,status:"warn"},
+    {week:"W01",events:0,protection:100,overdue:7,status:"ok"},
+  ];
+  document.getElementById("history-content").innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="background:var(--gray-l);">
+        <th style="padding:10px;text-align:left;border-bottom:1px solid var(--border);">สัปดาห์</th>
+        <th style="padding:10px;text-align:center;border-bottom:1px solid var(--border);">I&C Events</th>
+        <th style="padding:10px;text-align:center;border-bottom:1px solid var(--border);">Protection %</th>
+        <th style="padding:10px;text-align:center;border-bottom:1px solid var(--border);">WO Overdue</th>
+        <th style="padding:10px;text-align:center;border-bottom:1px solid var(--border);">สถานะ</th>
+      </tr></thead>
+      <tbody>${weeks.map(w=>`<tr>
+        <td style="padding:10px;font-weight:500;">${w.week}</td>
+        <td style="padding:10px;text-align:center;color:${w.events>0?"#C0392B":"#1E7A46"};">${w.events}</td>
+        <td style="padding:10px;text-align:center;">${w.protection}%</td>
+        <td style="padding:10px;text-align:center;">${w.overdue}</td>
+        <td style="padding:10px;text-align:center;"><span style="background:${w.status==="ok"?"#E8F5EE":"#FEF3E2"};color:${w.status==="ok"?"#1E7A46":"#B36A00"};padding:3px 10px;border-radius:10px;font-size:11px;">${w.status==="ok"?"✅ ปกติ":"⚠️ มีความเสี่ยง"}</span></td>
+      </tr>`).join("")}</tbody>
+    </table>`;
+}
+</script>
+</body>
+</html>
