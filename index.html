@@ -359,7 +359,7 @@ textarea{resize:vertical;min-height:72px;}
 
 <script>
 // ══════ CONFIG — แก้ URL นี้หลัง Deploy Google Apps Script ══════
-const SCRIPT_URL = "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec";
 
 // ══════ MASTER DATA ══════
 const TEAM = [
@@ -598,17 +598,16 @@ async function saveDraft() {
 
   showToast("⏳ กำลังบันทึกร่าง...");
   try {
-    const res  = await fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(d)});
-    const json = await res.json();
-    if(json.status==="ok"){
-      showToast(`💾 บันทึกร่างแล้ว — ${json.rows} รายการ (${d.author})`);
-      loadDraftStatus(d.week);
-    } else throw new Error(json.message);
+    const form1 = new FormData();
+    form1.append("data", JSON.stringify(d));
+    await fetch(SCRIPT_URL, { method:"POST", body:form1, mode:"no-cors" });
+    showToast(`💾 บันทึกร่างแล้ว (${d.author})`);
+    loadDraftStatus(d.week);
   } catch(err){ showToast("❌ บันทึกร่างไม่สำเร็จ: "+err.message,true); }
 }
 
 async function loadDraftStatus(week) {
-  if(SCRIPT_URL==="YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"){
+  if(SCRIPT_URL==="https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec"){
     const raw = localStorage.getItem("ic_draft_demo_"+week);
     if(raw){ const d=JSON.parse(raw);
       updateDraftBar([{author:d.data.author,lastUpdate:d.savedAt}]); }
@@ -653,7 +652,7 @@ async function submitReport() {
   const hasDraft = document.getElementById("draft-bar").style.display !== "none";
   let payload = {...d};
 
-  if(hasDraft && SCRIPT_URL !== "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE") {
+  if(hasDraft && SCRIPT_URL !== "https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec") {
     const doMerge = confirm(
       "พบร่างจากสมาชิกทีมใน Google Sheets\n\n" +
       "✅ OK = รวมข้อมูลจากทุกคนแล้ว Submit (แนะนำ)\n" +
@@ -661,7 +660,9 @@ async function submitReport() {
     );
     if(doMerge) {
       // บันทึกร่างตัวเองก่อน แล้วสั่ง Merge
-      await fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify({...d,action:"saveDraft"})}).catch(()=>{});
+      const fSilent = new FormData();
+  fSilent.append("data", JSON.stringify({...d, action:"saveDraft"}));
+  await fetch(SCRIPT_URL, { method:"POST", body:fSilent, mode:"no-cors" }).catch(()=>{});
       payload = { action:"mergeAndSubmit", week:d.week };
     }
   }
@@ -670,7 +671,7 @@ async function submitReport() {
   btn.disabled=true; btn.textContent="⏳ กำลัง Submit...";
   document.getElementById("submit-status").textContent="กำลังบันทึกข้อมูล...";
 
-  if(SCRIPT_URL==="YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"){
+  if(SCRIPT_URL==="https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec"){
     setTimeout(()=>{
       showToast(`✅ Demo Mode: Submit สำเร็จ! (${d.week})`);
       document.getElementById("draft-bar").style.display="none";
@@ -681,16 +682,15 @@ async function submitReport() {
   }
 
   try {
-    const res  = await fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(payload)});
-    const json = await res.json();
-    if(json.status==="ok"){
-      const msg = json.contributors
-        ? `✅ Merge สำเร็จ! จาก: ${json.contributors.join(", ")}`
-        : `✅ Submit สำเร็จ (${d.week})`;
-      showToast(msg);
-      document.getElementById("draft-bar").style.display="none";
-      document.getElementById("submit-status").textContent=`✅ บันทึกแล้ว — Sheet ${d.week}`;
-    } else throw new Error(json.message);
+    const formSubmit = new FormData();
+    formSubmit.append("data", JSON.stringify(payload));
+    await fetch(SCRIPT_URL, { method:"POST", body:formSubmit, mode:"no-cors" });
+    const msg = payload.action === "mergeAndSubmit"
+      ? `✅ Merge & Submit สำเร็จ! (${d.week})`
+      : `✅ Submit สำเร็จ (${d.week})`;
+    showToast(msg);
+    document.getElementById("draft-bar").style.display="none";
+    document.getElementById("submit-status").textContent=`✅ บันทึกแล้ว — Sheet ${d.week}`;
   } catch(err){
     showToast("❌ Submit ไม่สำเร็จ: "+err.message,true);
     document.getElementById("submit-status").textContent="❌ เกิดข้อผิดพลาด";
@@ -807,7 +807,7 @@ function buildPreview() {
 // ══════ HISTORY ══════
 async function loadHistory() {
   document.getElementById("history-content").innerHTML=`<p style="text-align:center;color:var(--muted);padding:20px;">⏳ กำลังโหลด...</p>`;
-  if(SCRIPT_URL==="YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"){
+  if(SCRIPT_URL==="https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec"){
     document.getElementById("history-content").innerHTML=`<p style="text-align:center;color:var(--muted);padding:20px;">Demo Mode — ตั้งค่า SCRIPT_URL เพื่อดูประวัติ</p>`;
     return;
   }
