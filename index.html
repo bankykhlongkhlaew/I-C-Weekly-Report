@@ -588,14 +588,6 @@ async function saveDraft() {
   if(!d.week){ showToast("กรุณาเลือกสัปดาห์ก่อน",true); return; }
   d.action = "saveDraft";
 
-  if(SCRIPT_URL==="https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec"){
-    // Demo mode — เก็บใน localStorage แทน
-    localStorage.setItem("ic_draft_demo_"+d.week, JSON.stringify({data:d,savedAt:new Date().toISOString()}));
-    showToast(`💾 Demo: บันทึกร่างแล้ว (${d.author})`);
-    updateDraftBar([{author:d.author,lastUpdate:new Date().toISOString()}]);
-    return;
-  }
-
   showToast("⏳ กำลังบันทึกร่าง...");
   try {
     const form1 = new FormData();
@@ -607,17 +599,14 @@ async function saveDraft() {
 }
 
 async function loadDraftStatus(week) {
-  if(SCRIPT_URL==="https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec"){
-    const raw = localStorage.getItem("ic_draft_demo_"+week);
-    if(raw){ const d=JSON.parse(raw);
-      updateDraftBar([{author:d.data.author,lastUpdate:d.savedAt}]); }
-    return;
-  }
   try {
     const res  = await fetch(`${SCRIPT_URL}?action=getDraft&week=${week}`);
     const json = await res.json();
-    if(json.status==="ok") updateDraftBar(json.contributors);
-  } catch(e){}
+    if(json.status==="ok" && json.contributors && json.contributors.length>0)
+      updateDraftBar(json.contributors);
+    else
+      document.getElementById("draft-bar").style.display="none";
+  } catch(e){ console.log("loadDraftStatus:", e.message); }
 }
 
 function updateDraftBar(contributors) {
@@ -639,7 +628,6 @@ function checkDraftBar() {
 function clearDraft() {
   if(!confirm("ลบร่างที่บันทึกไว้?")) return;
   const week = document.getElementById("f-week").value;
-  localStorage.removeItem("ic_draft_demo_"+week);
   document.getElementById("draft-bar").style.display = "none";
   showToast("🗑 ลบร่างแล้ว");
 }
@@ -671,15 +659,7 @@ async function submitReport() {
   btn.disabled=true; btn.textContent="⏳ กำลัง Submit...";
   document.getElementById("submit-status").textContent="กำลังบันทึกข้อมูล...";
 
-  if(SCRIPT_URL==="https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec"){
-    setTimeout(()=>{
-      showToast(`✅ Demo Mode: Submit สำเร็จ! (${d.week})`);
-      document.getElementById("draft-bar").style.display="none";
-      document.getElementById("submit-status").textContent="⚠️ Demo Mode — ตั้งค่า SCRIPT_URL เพื่อบันทึกจริง";
-      btn.disabled=false; btn.textContent="📤 Submit รายงาน";
-    },1200);
-    return;
-  }
+
 
   try {
     const formSubmit = new FormData();
@@ -808,8 +788,7 @@ function buildPreview() {
 async function loadHistory() {
   document.getElementById("history-content").innerHTML=`<p style="text-align:center;color:var(--muted);padding:20px;">⏳ กำลังโหลด...</p>`;
   if(SCRIPT_URL==="https://script.google.com/macros/s/AKfycbzKY9y1uaoPRNtTCJw2HqscbGmxBN3S1AiXoUwwoiT-gV1wFYGq_lAlnk3IOtHenTtrxQ/exec"){
-    document.getElementById("history-content").innerHTML=`<p style="text-align:center;color:var(--muted);padding:20px;">Demo Mode — ตั้งค่า SCRIPT_URL เพื่อดูประวัติ</p>`;
-    return;
+  
   }
   try {
     const res  = await fetch(`${SCRIPT_URL}?action=getHistory`);
