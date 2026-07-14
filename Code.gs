@@ -2,9 +2,9 @@
 // IC Weekly Report — Google Apps Script Backend v3
 // รองรับ FormData (no-cors) + JSON
 // ══════════════════════════════════════════════════════════════════════
-
+ 
 const SPREADSHEET_ID = "";  // ใส่ ID ถ้ามีหลาย Spreadsheet ปล่อยว่าง = ใช้ที่ผูกกับ Script
-
+ 
 // ── ROUTING ──────────────────────────────────────────────────────────
 function doPost(e) {
   try {
@@ -16,7 +16,7 @@ function doPost(e) {
       const raw = e.parameter.data || (e.parameters.data && e.parameters.data[0]) || "{}";
       data = JSON.parse(raw);
     }
-
+ 
     const ss = getSpreadsheet();
     switch (data.action) {
       case "saveDraft":      return ok(saveDraft(ss, data));
@@ -30,35 +30,36 @@ function doPost(e) {
     return ok({ status: "error", message: err.message });
   }
 }
-
+ 
 function doGet(e) {
   try {
     const ss  = getSpreadsheet();
     const act = (e.parameter && e.parameter.action) || "getHistory";
     switch (act) {
-      case "getDraft":   return ok(getDraft(ss, e.parameter.week));
-      case "getHistory": return ok(getHistory(ss));
-      case "getMonthly": return ok(getMonthlyData(ss, e.parameter.month || getCurrentMonth()));
-      default:           return ok({ status: "error", message: "Unknown action" });
+      case "getDraft":      return ok(getDraft(ss, e.parameter.week));
+      case "getHistory":    return ok(getHistory(ss));
+      case "getMonthly":    return ok(getMonthlyData(ss, e.parameter.month || getCurrentMonth()));
+      case "getWeekDetail": return ok(getWeekDetail(ss, e.parameter.week));
+      default:              return ok({ status: "error", message: "Unknown action" });
     }
   } catch (err) {
     return ok({ status: "error", message: err.message });
   }
 }
-
+ 
 function ok(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
-
+ 
 // ── SPREADSHEET ───────────────────────────────────────────────────────
 function getSpreadsheet() {
   return SPREADSHEET_ID
     ? SpreadsheetApp.openById(SPREADSHEET_ID)
     : SpreadsheetApp.getActiveSpreadsheet();
 }
-
+ 
 // ══════════════════════════════════════════════════════════════════════
 // DRAFT SYSTEM
 // ══════════════════════════════════════════════════════════════════════
@@ -79,13 +80,13 @@ function saveDraft(ss, data) {
   }
   return { status: "ok", sheet: sheetName, rows: rows.length, author: data.author };
 }
-
+ 
 function flattenData(data, ts) {
   const author = data.author;
   const rows   = [];
   const add    = (sec, key, val) =>
     rows.push([ts, author, sec, String(key), JSON.stringify(val), data.deviceInfo || ""]);
-
+ 
   add("meta","week",          data.week);
   add("meta","overallStatus", data.overallStatus);
   add("meta","note",          data.note || "");
@@ -95,7 +96,7 @@ function flattenData(data, ts) {
   add("ic",  "bypass",        data.bypass     || "");
   add("ic",  "ytd",           data.ytd        || 0);
   add("ic",  "target",        data.target     || 4);
-
+ 
   (data.team        || []).forEach((p,i) => add("team",       i+"_"+p.name, p));
   (data.risks       || []).forEach((r,i) => add("risk",       i+"_"+r.sys,  r));
   (data.events      || []).forEach((e,i) => add("event",      i,            e));
@@ -104,7 +105,7 @@ function flattenData(data, ts) {
   (data.plans       || []).forEach((p,i) => add("plan",       i,            p));
   return rows;
 }
-
+ 
 function deleteAuthorRows(sheet, author) {
   const last = sheet.getLastRow();
   if (last < 2) return;
@@ -113,13 +114,13 @@ function deleteAuthorRows(sheet, author) {
     if (vals[i][1] === author) sheet.deleteRow(i + 2);
   }
 }
-
+ 
 // ── GET DRAFT ─────────────────────────────────────────────────────────
 function getDraft(ss, week) {
   const sheetName = "DRAFT_" + week.replace("-", "_");
   const ds = ss.getSheetByName(sheetName);
   if (!ds || ds.getLastRow() < 2) return { status: "empty", week, contributors: [] };
-
+ 
   const rows = ds.getRange(2, 1, ds.getLastRow() - 1, 6).getValues();
   const byAuthor = {};
   rows.forEach(row => {
@@ -132,7 +133,7 @@ function getDraft(ss, week) {
   });
   return { status: "ok", week, contributors: Object.values(byAuthor), rawRows: rows.length };
 }
-
+ 
 // ── MERGE & SUBMIT ────────────────────────────────────────────────────
 function mergeAndSubmit(ss, week) {
   const draft = getDraft(ss, week);
@@ -145,7 +146,7 @@ function mergeAndSubmit(ss, week) {
   return { status: "ok", week, contributors: draft.contributors.map(c => c.author),
            message: "Merge สำเร็จ จาก " + draft.contributors.length + " คน" };
 }
-
+ 
 function buildMergedData(contributors, week) {
   const merged = {
     week, weekLabel: "สัปดาห์ " + week,
@@ -186,7 +187,7 @@ function buildMergedData(contributors, week) {
   });
   return merged;
 }
-
+ 
 // ══════════════════════════════════════════════════════════════════════
 // WEEKLY SHEET
 // ══════════════════════════════════════════════════════════════════════
@@ -196,7 +197,7 @@ function writeWeeklySheet(ss, data) {
   if (!ws) { ws = ss.insertSheet(sheetName); ws.setTabColor("#0D7C8C"); }
   ws.clearContents();
   ws.setColumnWidth(1, 220); ws.setColumnWidth(2, 420);
-
+ 
   const rows = [
     ["I&C Weekly Report — BPK Power Plant", ""],
     ["สัปดาห์",      data.weekLabel || data.week],
@@ -205,7 +206,7 @@ function writeWeeklySheet(ss, data) {
     ["หมายเหตุ",     data.note || ""],
     ["Timestamp",   data.timestamp],
     ["",""],
-    ["=== สถานะโรงไฟฟ้า (I&C) ===",""],
+    ["■ สถานะโรงไฟฟ้า (I&C)",""],
     ["I&C Events สัปดาห์นี้",            data.icEvents],
     ["Protection System Readiness (%)", data.protection],
     ["Critical WO เกิน Due Date",       data.overdueWo],
@@ -213,40 +214,40 @@ function writeWeeklySheet(ss, data) {
     ["YTD I&C Events",                  data.ytd],
     ["เป้า I&C Events ทั้งปี",          data.target],
     ["",""],
-    ["=== Escalation ===",""],
+    ["■ Escalation",""],
     ...(data.escalations||[]).map(e => [e.type+" ("+e.urgency+")", e.detail]),
     ["",""],
-    ["=== Highlight Events ===",""],
+    ["■ Highlight Events",""],
     ["วันที่","ระบบ | ประเภท | รายละเอียด | WO | สถานะ"],
     ...(data.events||[]).map(e =>
       [e.date, [e.sys,e.type,e.desc,e.wo,e.status].filter(Boolean).join(" | ")]),
     ["",""],
-    ["=== Risk Register Status ===",""],
+    ["■ Risk Register Status",""],
     ["ระบบ","ความเสี่ยง | Score | สถานะ | เจ้าของ"],
     ...(data.risks||[]).filter(r=>r&&r.sys).map(r =>
       [r.sys, [r.risk,"Score:"+r.score,r.status,r.owner].filter(Boolean).join(" | ")]),
     ["",""],
-    ["=== ทีมงาน ===",""],
+    ["■ ทีมงาน",""],
     ...(data.team||[]).map(p => [p.name, p.status]),
     ["",""],
-    ["=== Spare Parts ===",""],
+    ["■ Spare Parts",""],
     ["ชื่ออะไหล่","จำนวน | Min | สถานะ"],
     ...(data.spares||[]).filter(s=>s&&s.name).map(s =>
       [s.name, ["Qty:"+s.qty,"Min:"+s.min,s.status].join(" | ")]),
     ["",""],
-    ["=== แผนสัปดาห์หน้า ===",""],
+    ["■ แผนสัปดาห์หน้า",""],
     ...(data.plans||[]).filter(p=>p&&p.desc).map((p,i) =>
       [(i+1)+". "+p.desc, p.owner+" ["+p.pri+"]"]),
   ];
-
+ 
   ws.getRange(1, 1, rows.length, 2).setValues(rows);
   ws.getRange("A1:B1").setBackground("#1A2E4A").setFontColor("#FFFFFF").setFontWeight("bold").setFontSize(12);
   rows.forEach((row, i) => {
-    if (typeof row[0]==="string" && row[0].startsWith("==="))
+    if (typeof row[0]==="string" && row[0].startsWith("■"))
       ws.getRange(i+1,1,1,2).setBackground("#E0F4F6").setFontWeight("bold").setFontColor("#0D7C8C");
   });
 }
-
+ 
 // ══════════════════════════════════════════════════════════════════════
 // MONTHLY SUMMARY
 // ══════════════════════════════════════════════════════════════════════
@@ -283,7 +284,7 @@ function updateMonthlySummary(ss, data) {
   const rowColor = data.overallStatus==="ok"?"#E8F5EE":data.overallStatus==="warn"?"#FEF3E2":"#FDECEA";
   ms.getRange(targetRow,1,1,7).setBackground(rowColor);
 }
-
+ 
 // ══════════════════════════════════════════════════════════════════════
 // HISTORY & HELPERS
 // ══════════════════════════════════════════════════════════════════════
@@ -306,7 +307,7 @@ function getHistory(ss) {
       };
     });
 }
-
+ 
 function getMonthlyData(ss, month) {
   const ms = ss.getSheetByName("Monthly_" + month);
   if (!ms) return { status: "not_found", month };
@@ -326,20 +327,33 @@ function getMonthlyData(ss, month) {
     }
   };
 }
-
+ 
+ 
+// ── GET WEEK DETAIL (อ่าน Weekly Sheet ทั้งหมดมาแสดงในเว็บ) ──────────
+function getWeekDetail(ss, week) {
+  const sheetName = "W_" + week.replace("-", "_");
+  const ws = ss.getSheetByName(sheetName);
+  if (!ws) return { status: "not_found", week };
+  const last = ws.getLastRow();
+  if (last < 1) return { status: "empty", week };
+  const rows = ws.getRange(1, 1, last, 2).getValues()
+    .map(r => [String(r[0]), String(r[1])]);
+  return { status: "ok", week, rows };
+}
+ 
 function getMonthFromWeek(weekStr) {
   const [year, week] = weekStr.split("-W").map(Number);
   const d = new Date(Date.UTC(year, 0, 1 + (week-1)*7));
   const months = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
   return months[d.getMonth()] + (year + 543);
 }
-
+ 
 function getCurrentMonth() {
   const now = new Date();
   const months = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
   return months[now.getMonth()] + (now.getFullYear() + 543);
 }
-
+ 
 // ── TEST ──────────────────────────────────────────────────────────────
 function testSaveDraft() {
   const ss   = getSpreadsheet();
