@@ -797,8 +797,9 @@ async function loadHistory() {
     const rows = json.map(w=>{
       const sc=w.overallStatus==="ok"?"var(--green)":w.overallStatus==="warn"?"var(--amber)":"var(--red)";
       const sb=w.overallStatus==="ok"?"var(--green-l)":w.overallStatus==="warn"?"var(--amber-l)":"var(--red-l)";
-      return `<tr>
-        <td style="padding:8px 10px;font-weight:500;">${w.weekLabel||w.week}</td>
+      return `<tr onclick="viewWeekDetail('${w.week}')" style="cursor:pointer;" 
+        onmouseover="this.style.background='var(--teal-l)'" onmouseout="this.style.background=''">
+        <td style="padding:8px 10px;font-weight:500;color:var(--teal);text-decoration:underline;">${w.weekLabel||w.week}</td>
         <td style="padding:8px 10px;text-align:center;color:${w.icEvents>0?"var(--red)":"var(--green)"};">${w.icEvents}</td>
         <td style="padding:8px 10px;text-align:center;">${w.protection}%</td>
         <td style="padding:8px 10px;text-align:center;">${w.overdueWo}</td>
@@ -814,8 +815,50 @@ async function loadHistory() {
           <th style="text-align:center;">ผู้จัดทำ</th><th style="text-align:center;">สถานะ</th>
         </tr></thead>
         <tbody>${rows}</tbody>
-      </table>`;
+      </table>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;">💡 คลิกที่สัปดาห์เพื่อดูรายงานรวมฉบับเต็ม</p>
+      <div id="week-detail" style="margin-top:12px;"></div>`;
   } catch(err){ document.getElementById("history-content").innerHTML=`<p style="text-align:center;color:var(--red);padding:20px;">❌ โหลดไม่สำเร็จ: ${err.message}</p>`; }
+}
+
+
+// ══════ VIEW WEEK DETAIL (รายงานรวมฉบับเต็ม) ══════
+async function viewWeekDetail(week) {
+  const container = document.getElementById("week-detail");
+  container.innerHTML = `<p style="text-align:center;color:var(--muted);padding:14px;">⏳ กำลังโหลดรายงาน ${week}...</p>`;
+  try {
+    const res  = await fetch(`${SCRIPT_URL}?action=getWeekDetail&week=${week}`);
+    const json = await res.json();
+    if (json.status !== "ok") {
+      container.innerHTML = `<p style="text-align:center;color:var(--red);padding:14px;">ไม่พบรายงานสัปดาห์ ${week}</p>`;
+      return;
+    }
+    // แปลง rows เป็น HTML สวยๆ
+    let html = `<div style="border:2px solid var(--teal);border-radius:10px;overflow:hidden;">
+      <div style="background:var(--navy);color:white;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:600;font-size:13px;">📋 รายงานรวม — ${week}</span>
+        <button onclick="document.getElementById('week-detail').innerHTML=''"
+          style="background:none;border:1px solid rgba(255,255,255,.4);color:white;padding:2px 10px;border-radius:4px;font-size:11px;cursor:pointer;">✕ ปิด</button>
+      </div>
+      <div style="padding:4px 0;background:white;">`;
+    json.rows.forEach(([c1, c2]) => {
+      if (!c1 && !c2) return;
+      if (c1.startsWith("■")) {
+        html += `<div style="background:var(--teal-l);color:var(--teal);font-weight:600;font-size:12px;padding:7px 16px;margin-top:4px;">${c1.replace("■","").trim()}</div>`;
+      } else if (c1 === "I&C Weekly Report — BPK Power Plant") {
+        // ข้าม title แถวแรก
+      } else {
+        html += `<div style="display:grid;grid-template-columns:220px 1fr;gap:10px;padding:5px 16px;border-bottom:1px solid var(--gray-l);font-size:12px;">
+          <span style="color:var(--muted);font-weight:500;">${c1}</span>
+          <span style="color:var(--text);">${c2}</span></div>`;
+      }
+    });
+    html += `</div></div>`;
+    container.innerHTML = html;
+    container.scrollIntoView({behavior:"smooth", block:"start"});
+  } catch(err) {
+    container.innerHTML = `<p style="text-align:center;color:var(--red);padding:14px;">❌ โหลดไม่สำเร็จ: ${err.message}</p>`;
+  }
 }
 
 // ══════ TOAST ══════
